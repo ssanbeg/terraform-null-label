@@ -2,19 +2,9 @@
 # terraform-null-label example #
 ################################
 module "label" {
-  source    = "../../"
-  namespace = "eg"
-  stage     = "prod"
-  name      = "app"
+  source = "../../"
 
-  tags = {
-    BusinessUnit = "Finance"
-    ManagedBy    = "Terraform"
-  }
-
-  additional_tag_map = {
-    propagate_at_launch = "true"
-  }
+  context = module.this.context
 }
 
 #######################
@@ -33,10 +23,20 @@ resource "aws_launch_template" "default" {
     enabled = false
   }
 
-  # terraform-null-label example used here: Set tags on volumes
+  # terraform-null-label example used here: Set tags on everything that can be tagged
   tag_specifications {
-    resource_type = "volume"
+    for_each = ["instance", "volume", "elastic-gpu", "spot-instance-request"]
+
+    resource_type = each.value
     tags          = module.label.tags
+  }
+
+  # Bridgecrew BC_AWS_GENERAL_26
+  tags = module.label.tags
+
+  # Bridgecrew compliance: Ensure Instance Metadata Service Version 1 is not enabled (BC_AWS_GENERAL_31)
+  metadata_options {
+    http_tokens = "required"
   }
 }
 
@@ -64,7 +64,7 @@ resource "aws_autoscaling_group" "default" {
 # Provider                     #
 ################################
 provider "aws" {
-  region  = "eu-west-1"
+  region = "eu-west-1"
 
   # Make it faster by skipping unneeded checks here
   skip_get_ec2_platforms      = true
